@@ -10,55 +10,54 @@ import '../data/stocks_data.dart';
 import '../data/news_data.dart';
 
 class GameProvider extends ChangeNotifier {
-  GameState _state = GameState(playerName: '');
+  GameState _state;
   final Random _random = Random();
   
-  // 市场状态
   double _marketSentiment = 0;
   List<News> _news = [];
   List<MarketIndex> _indices = [];
-  
-  // 生存状态
-  SurvivalStatus _survival = SurvivalStatus();
+  SurvivalStatus? _survival;
   List<InventoryItem> _inventory = [];
   
-  // 游戏设置
   String _gameMode = 'normal';
   String _difficulty = 'normal';
   bool _isPaused = false;
   int _gameSpeed = 1;
 
+  GameProvider() : _state = GameState(playerName: '');
+
   GameState get state => _state;
   double get marketSentiment => _marketSentiment;
   List<News> get news => _news;
   List<MarketIndex> get indices => _indices;
-  SurvivalStatus get survival => _survival;
+  SurvivalStatus get survival => _survival ?? SurvivalStatus();
   List<InventoryItem> get inventory => _inventory;
   String get gameMode => _gameMode;
   String get difficulty => _difficulty;
   bool get isPaused => _isPaused;
   int get gameSpeed => _gameSpeed;
 
-  // 初始化游戏
   void startGame(String name, Player player, {String mode = 'normal', String difficulty = 'normal'}) {
     _gameMode = mode;
     _difficulty = difficulty;
+    
+    final stocks = INITIAL_STOCKS.map((s) => Stock(
+      id: s.id,
+      code: s.code,
+      name: s.name,
+      industry: s.industry,
+      basePrice: s.basePrice,
+      currentPrice: s.currentPrice,
+      volatility: s.volatility,
+      description: s.description,
+      board: s.board,
+    )).toList();
     
     _state = GameState(
       playerName: name,
       player: player,
       cash: player.initialCash.toDouble(),
-      stocks: INITIAL_STOCKS.map((s) => Stock(
-        id: s.id,
-        code: s.code,
-        name: s.name,
-        industry: s.industry,
-        basePrice: s.basePrice,
-        currentPrice: s.currentPrice,
-        volatility: s.volatility,
-        description: s.description,
-        board: s.board,
-      )).toList(),
+      stocks: stocks,
     );
     
     _initMarketIndices();
@@ -66,11 +65,11 @@ class GameProvider extends ChangeNotifier {
     _news = [];
     _inventory = [];
     _marketSentiment = 0;
+    _isPaused = false;
     
     notifyListeners();
   }
 
-  // 初始化大盘指数
   void _initMarketIndices() {
     _indices = [
       MarketIndex(id: 'sh', code: '000001', name: '上证指数', currentValue: 3100, components: ['1','2','3','4','5','6','7','8','9','10']),
@@ -80,18 +79,13 @@ class GameProvider extends ChangeNotifier {
     ];
   }
 
-  // 更新股票价格
   void updateStockPrices() {
-    if (_isPaused) return;
+    if (_isPaused || _state.stocks.isEmpty) return;
 
     for (var stock in _state.stocks) {
-      // 基础波动
       var change = (_random.nextDouble() - 0.5) * 2 * stock.volatility;
-      
-      // 市场情绪影响
       change += _marketSentiment * 0.001;
       
-      // 新闻影响
       for (var n in _news.where((n) => !n.isDigested)) {
         if (n.affectedIndustries.contains(stock.industry)) {
           change += n.marketEffect * 0.005;
@@ -102,19 +96,17 @@ class GameProvider extends ChangeNotifier {
       stock.updatePrice(newPrice);
     }
     
-    // 更新持仓
     for (var pos in _state.positions) {
-      final stock = _state.stocks.firstWhere((s) => s.id == pos.stockId);
-      pos.updateProfit(stock.currentPrice);
+      final stock = _state.stocks.where((s) => s.id == pos.stockId).firstOrNull;
+      if (stock != null) {
+        pos.updateProfit(stock.currentPrice);
+      }
     }
     
-    // 更新大盘指数
     _updateIndices();
-    
     notifyListeners();
   }
 
-  // 更新大盘指数
   void _updateIndices() {
     for (var index in _indices) {
       double totalChange = 0;
@@ -138,9 +130,8 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  // 生成新闻
   void generateNews() {
-    if (_random.nextDouble() > 0.1) return; // 10%概率生成新闻
+    if (_random.nextDouble() > 0.1) return;
     
     final template = NEWS_TEMPLATES[_random.nextInt(NEWS_TEMPLATES.length)];
     final newsItem = News(
@@ -155,15 +146,10 @@ class GameProvider extends ChangeNotifier {
     );
     
     _news.insert(0, newsItem);
-    
-    // 更新市场情绪
-    _marketSentiment += newsItem.marketEffect * 2;
-    _marketSentiment = _marketSentiment.clamp(-100, 100);
-    
+    _marketSentiment = (_marketSentiment + newsItem.marketEffect * 2).clamp(-100, 100);
     notifyListeners();
   }
 
-  // 消化新闻
   void digestNews(String newsId) {
     final index = _news.indexWhere((n) => n.id == newsId);
     if (index >= 0) {
@@ -172,7 +158,6 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  // 买入股票
   bool buyStock(Stock stock, int shares) {
     final totalCost = stock.currentPrice * shares;
     if (totalCost > _state.cash) return false;
@@ -214,7 +199,6 @@ class GameProvider extends ChangeNotifier {
     return true;
   }
 
-  // 卖出股票
   bool sellStock(Stock stock, int shares) {
     final position = _state.positions.where((p) => p.stockId == stock.id).firstOrNull;
     if (position == null || position.shares < shares) return false;
@@ -245,63 +229,22 @@ class GameProvider extends ChangeNotifier {
     return true;
   }
 
-  // 生存模式相关
   void updateSurvival() {
-    if (_gameMode != 'survival' || _isPaused) return;
-    
-    _survival.decay(0.5);
-    
-    if (_survival.isDead) {
-      // 游戏结束
-    }
-    
+    if (_gameMode != 'survival' || _isPaused || _survival == null) return;
+    _survival!.decay(0.5);
     notifyListeners();
   }
 
-  void consumeItem(String itemId) {
-    final index = _inventory.indexWhere((i) => i.item.id == itemId);
-    if (index >= 0) {
-      final item = _inventory[index];
-      
-      item.item.effects.forEach((key, value) {
-        switch (key) {
-          case 'hunger':
-            _survival.hunger = (_survival.hunger + value).clamp(0, 100);
-            break;
-          case 'thirst':
-            _survival.thirst = (_survival.thirst + value).clamp(0, 100);
-            break;
-          case 'health':
-            _survival.health = (_survival.health + value).clamp(0, 100);
-            break;
-          case 'mood':
-            _survival.mood = (_survival.mood + value).clamp(0, 100);
-            break;
-        }
-      });
-      
-      item.quantity--;
-      if (item.quantity <= 0) {
-        _inventory.removeAt(index);
-      }
-      
-      notifyListeners();
-    }
-  }
-
-  // 暂停/继续
   void togglePause() {
     _isPaused = !_isPaused;
     notifyListeners();
   }
 
-  // 设置游戏速度
   void setGameSpeed(int speed) {
     _gameSpeed = speed.clamp(1, 10);
     notifyListeners();
   }
 
-  // 推进时间
   void advanceTime() {
     if (_isPaused) return;
 
@@ -312,7 +255,6 @@ class GameProvider extends ChangeNotifier {
       newTime = 0;
       newDay++;
       
-      // 每日重置
       for (var stock in _state.stocks) {
         stock.dayOpenPrice = stock.currentPrice;
         stock.dayHighPrice = stock.currentPrice;
