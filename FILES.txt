@@ -1,0 +1,40 @@
+项目文件清单
+============
+
+核心文档:
+- PROJECT_SPEC.md    # 完整项目文档（953行）
+- QUICK_START.md     # 快速开始指南
+- README.md          # 项目说明
+- FILES.txt          # 本文件
+
+源代码:
+- lib/main.dart                    # 应用入口
+- lib/models/stock.dart            # 股票模型
+- lib/models/player.dart           # 玩家模型
+- lib/models/news.dart             # 新闻模型
+- lib/models/market_index.dart     # 大盘指数模型
+- lib/models/survival.dart         # 生存系统模型
+- lib/models/game_state.dart       # 游戏状态模型
+- lib/providers/game_provider.dart # 状态管理
+- lib/screens/start_screen.dart    # 开始界面
+- lib/screens/game_screen.dart     # 游戏主界面
+- lib/widgets/stock_card.dart      # 股票卡片
+- lib/widgets/position_card.dart   # 持仓卡片
+- lib/widgets/news_card.dart       # 新闻卡片
+- lib/widgets/market_overview.dart # 市场概览
+- lib/widgets/survival_panel.dart  # 生存面板
+- lib/constants/game_constants.dart # 游戏常量
+- lib/data/stocks_data.dart        # 股票数据
+- lib/data/news_data.dart          # 新闻数据
+
+配置文件:
+- pubspec.yaml        # 依赖配置
+- analysis_options.yaml # 分析配置
+
+平台项目:
+- android/            # Android项目
+- windows/            # Windows项目
+- web/                # Web项目
+
+CI/CD:
+- .github/workflows/build.yml # GitHub Actions构建配置
